@@ -142,11 +142,15 @@ function parseDesc(desc) {
   m = desc.match(/^\d+\s*-\s*(\d{2}[.:]\d{2})\s*Uhr\s*-\s*([^-]+?)\s*-\s*(.+)/);
   if (m) return { time: normalizeTime(m[1]), location: m[2].trim(), typeRaw: m[3].trim() };
 
-  // AG baden: "NNN - HH:MM Uhr / Type / Street / Location"
+  // AG baden: "NNN - HH:MM Uhr / Type / Street / Town" or with extra detail
+  // Combine street + town for location when there are 3+ parts after the type
   m = desc.match(/^\d+\s*-\s*(\d{2}[.:]\d{2})\s*(?:Uhr)?\s*\/\s*(.+)/);
   if (m) {
     const parts = m[2].split('/').map(s => s.trim());
-    return { time: normalizeTime(m[1]), typeRaw: parts[0], location: parts[parts.length - 1] };
+    const typeRaw = parts[0];
+    // parts[1..] are street segments and town — join them as location
+    const location = parts.length >= 3 ? parts.slice(-2).join(', ') : parts[parts.length - 1];
+    return { time: normalizeTime(m[1]), typeRaw, location };
   }
 
   // AG zurzach: "NN - HH.MM Uhr Type, Location"

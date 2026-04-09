@@ -145,19 +145,32 @@ app.get('/api/recent', async (req, res) => {
     return ts >= cutoff;
   });
 
+  // Canton code → name for geocode cache keys
+  const CANTON_NAMES = {
+    AG: 'Aargau', AI: 'Appenzell Innerrhoden', AR: 'Appenzell Ausserrhoden',
+    BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
+    FR: 'Freiburg', GE: 'Genf', GL: 'Glarus', GR: 'Graubünden',
+    JU: 'Jura', LU: 'Luzern', NE: 'Neuenburg', NW: 'Nidwalden',
+    OW: 'Obwalden', SG: 'St. Gallen', SH: 'Schaffhausen', SO: 'Solothurn',
+    SZ: 'Schwyz', TG: 'Thurgau', TI: 'Tessin', UR: 'Uri',
+    VD: 'Waadt', VS: 'Wallis', ZG: 'Zug', ZH: 'Zürich',
+  };
+  function geoQuery(c) {
+    const cn = CANTON_NAMES[c.canton] || c.canton || 'Luzern';
+    return `${c.location.trim()}, Kanton ${cn}, Schweiz`;
+  }
+
   // Add cached geocoords synchronously (no waiting for new requests)
   const withCoords = recent.map(c => {
     if (!c.location) return c;
-    const query = `${c.location.trim()}, Kanton Luzern, Schweiz`;
-    const coords = geocode.getFromCache(query);
+    const coords = geocode.getFromCache(geoQuery(c));
     return coords ? { ...c, lat: coords.lat, lon: coords.lon } : c;
   });
 
   // Kick off background geocoding for anything uncached (fire and forget)
   const uncached = recent.filter(c => {
     if (!c.location) return false;
-    const query = `${c.location.trim()}, Kanton Luzern, Schweiz`;
-    return geocode.getFromCache(query) === undefined;
+    return geocode.getFromCache(geoQuery(c)) === undefined;
   });
   if (uncached.length > 0) {
     geocode.geocodeCalls(uncached).catch(() => {});

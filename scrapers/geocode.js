@@ -7,6 +7,16 @@ const path = require('path');
 const CACHE_FILE = path.join(__dirname, '..', 'cache', 'geocode.json');
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
+const CANTON_NAMES = {
+  AG: 'Aargau', AI: 'Appenzell Innerrhoden', AR: 'Appenzell Ausserrhoden',
+  BE: 'Bern', BL: 'Basel-Landschaft', BS: 'Basel-Stadt',
+  FR: 'Freiburg', GE: 'Genf', GL: 'Glarus', GR: 'Graubünden',
+  JU: 'Jura', LU: 'Luzern', NE: 'Neuenburg', NW: 'Nidwalden',
+  OW: 'Obwalden', SG: 'St. Gallen', SH: 'Schaffhausen', SO: 'Solothurn',
+  SZ: 'Schwyz', TG: 'Thurgau', TI: 'Tessin', UR: 'Uri',
+  VD: 'Waadt', VS: 'Wallis', ZG: 'Zug', ZH: 'Zürich',
+};
+
 // In-memory cache, persisted to disk
 let memCache = {};
 
@@ -40,10 +50,11 @@ async function rateLimit() {
  * Returns { lat, lon } or null if not found.
  * Results are cached permanently (addresses don't move).
  */
-async function lookup(location, sourceName, canton = 'Luzern') {
+async function lookup(location, sourceName, canton = 'LU') {
   if (!location || location.trim().length < 3) return null;
 
-  const query = `${location.trim()}, Kanton ${canton}, Schweiz`;
+  const cantonName = CANTON_NAMES[canton] || canton;
+  const query = `${location.trim()}, Kanton ${cantonName}, Schweiz`;
 
   if (memCache[query] !== undefined) {
     return memCache[query]; // null = previously not found, object = found
@@ -106,13 +117,15 @@ async function geocodeCalls(calls) {
       results.push(call);
       continue;
     }
-    const query = `${call.location.trim()}, Kanton Luzern, Schweiz`;
+    const canton = call.canton || 'LU';
+    const cantonName = CANTON_NAMES[canton] || canton;
+    const query = `${call.location.trim()}, Kanton ${cantonName}, Schweiz`;
     if (memCache[query] !== undefined) {
       // Already cached — no HTTP request needed
       const coords = memCache[query];
       results.push(coords ? { ...call, lat: coords.lat, lon: coords.lon } : call);
     } else {
-      const coords = await lookup(call.location, call.sourceName);
+      const coords = await lookup(call.location, call.sourceName, canton);
       results.push(coords ? { ...call, lat: coords.lat, lon: coords.lon } : call);
     }
   }

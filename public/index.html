@@ -156,10 +156,47 @@
 
   <!-- ── Statistik Tab ── -->
   <div id="tab-statistik" class="tab-content hidden">
+
+    <!-- Stats toolbar: totals + interactive chip filters -->
+    <div class="stats-toolbar">
+      <div class="stats-summary">
+        <div class="stats-total">
+          <span class="stats-total-number" id="stats-total-count">—</span>
+          <span class="stats-total-label">Einsätze</span>
+        </div>
+        <div class="stats-avg-group">
+          <div class="stats-avg" id="stats-avg-day"></div>
+          <div class="stats-avg" id="stats-avg-week"></div>
+        </div>
+      </div>
+      <div class="stats-local-filters">
+        <div class="stats-filter-group">
+          <div class="chip-row">
+            <label>Abteilungen</label>
+            <button class="chip-toggle-all" data-target="depts">Alle</button>
+            <button class="chip-toggle-none" data-target="depts">Keine</button>
+          </div>
+          <div class="chip-container" id="stats-dept-chips"></div>
+        </div>
+        <div class="stats-filter-group">
+          <div class="chip-row">
+            <label>Einsatzarten</label>
+            <button class="chip-toggle-all" data-target="types">Alle</button>
+            <button class="chip-toggle-none" data-target="types">Keine</button>
+          </div>
+          <div class="chip-container" id="stats-type-chips"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="stats-grid">
       <div class="stats-card">
         <h3 class="stats-card-title">Einsatzart</h3>
         <div class="chart-container"><canvas id="typeChart"></canvas></div>
+      </div>
+      <div class="stats-card">
+        <h3 class="stats-card-title">Kanton-Vergleich</h3>
+        <div class="chart-container"><canvas id="cantonChart"></canvas></div>
       </div>
       <div class="stats-card">
         <h3 class="stats-card-title">Einsätze pro Wochentag</h3>
@@ -170,12 +207,28 @@
         <div class="chart-container"><canvas id="hourlyChart"></canvas></div>
       </div>
       <div class="stats-card stats-card-wide">
-        <h3 class="stats-card-title">Einsätze pro Monat</h3>
+        <h3 class="stats-card-title" id="monthly-chart-title">Einsätze pro Monat</h3>
         <div class="chart-container chart-container-wide"><canvas id="monthlyChart"></canvas></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3 class="stats-card-title">Jahresvergleich</h3>
+        <div class="chart-container chart-container-wide"><canvas id="yoyChart"></canvas></div>
       </div>
       <div class="stats-card stats-card-wide">
         <h3 class="stats-card-title">Einsätze pro Abteilung</h3>
         <div class="chart-container chart-container-dept"><canvas id="deptChart"></canvas></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3 class="stats-card-title">Häufigste Einsatzorte (Top 15)</h3>
+        <div class="chart-container chart-container-dept"><canvas id="locationChart"></canvas></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3 class="stats-card-title">Heatmap: Stunde / Wochentag</h3>
+        <div id="heatmapContainer" class="heatmap-wrapper"></div>
+      </div>
+      <div class="stats-card">
+        <h3 class="stats-card-title">Trends</h3>
+        <div class="stats-trends" id="stats-trends"></div>
       </div>
     </div>
   </div>
