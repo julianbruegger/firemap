@@ -3,7 +3,9 @@ version: "3.8"
 services:
   firemap:
     build: .
-    env_file: .env
+    environment:
+      - PORT=7291
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     restart: unless-stopped
     volumes:
       - cache:/app/cache
