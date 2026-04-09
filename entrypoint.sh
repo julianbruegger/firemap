@@ -8,9 +8,14 @@ SERVER_PID=$!
 # Wait for server to be ready
 sleep 2
 
-# Start cloudflared tunnel (quick tunnel — no account needed)
-echo "[cloudflared] Starting tunnel on port ${PORT}..."
-cloudflared tunnel --url http://localhost:${PORT} &
+# Start cloudflared tunnel
+if [ -n "$TUNNEL_TOKEN" ]; then
+  echo "[cloudflared] Starting named tunnel..."
+  cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN" &
+else
+  echo "[cloudflared] No TUNNEL_TOKEN set, using quick tunnel..."
+  cloudflared tunnel --url http://localhost:${PORT} &
+fi
 TUNNEL_PID=$!
 
 # Wait for either process to exit

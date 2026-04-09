@@ -17,6 +17,7 @@ COPY public/ ./public/
 RUN mkdir -p cache
 
 ENV PORT=7291
+ENV TUNNEL_TOKEN=
 
 EXPOSE 7291
 
