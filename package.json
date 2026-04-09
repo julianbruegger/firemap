@@ -1,0 +1,15 @@
+{
+  "name": "firealerts",
+  "version": "1.0.0",
+  "description": "Fire department calls viewer for Canton Lucerne",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0",
+    "express": "^4.21.1"
+  }
+}

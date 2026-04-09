@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feuerwehr Einsätze — Kanton Luzern</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script>
+    // Prevent flash of wrong theme
+    (function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)})();
+  </script>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-title">
+      <span class="fire-icon">🔥</span>
+      <div>
+        <h1>Feuerwehr Einsätze</h1>
+        <p class="subtitle">Kanton Luzern</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="status-text" id="status-text">Lade Daten…</span>
+      <button class="btn-refresh" id="btn-refresh" title="Daten neu laden">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Aktualisieren
+      </button>
+      <button class="btn-theme" id="btn-theme" title="Design wechseln">
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="warning-banner" id="warning-banner" style="display:none">
+  <strong>Warnung:</strong> Einige Quellen konnten nicht geladen werden: <span id="warning-detail"></span>
+</div>
+
+<main>
+  <section class="filters">
+    <div class="filter-group">
+      <label for="filter-canton">Kanton</label>
+      <select id="filter-canton">
+        <option value="">Alle</option>
+        <option value="LU">LU</option>
+        <option value="SO">SO</option>
+        <option value="ZH">ZH</option>
+        <option value="AG">AG</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-dept">Abteilung</label>
+      <select id="filter-dept"><option value="">Alle</option></select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-year">Jahr</label>
+      <select id="filter-year">
+        <option value="">Alle</option>
+        <option value="2026">2026</option>
+        <option value="2025">2025</option>
+        <option value="2024">2024</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-type">Einsatzart</label>
+      <select id="filter-type"><option value="">Alle</option></select>
+    </div>
+    <div class="filter-group search-group">
+      <label for="filter-search">Suche</label>
+      <input type="search" id="filter-search" placeholder="Ort, Typ, Beschreibung…" />
+    </div>
+    <div class="filter-group">
+      <label>Zeitraum</label>
+      <div class="time-btn-group">
+        <button class="global-time-btn" data-days="30">30T</button>
+        <button class="global-time-btn" data-days="365">1J</button>
+        <button class="global-time-btn" data-days="1825">5J</button>
+        <button class="global-time-btn active" data-days="">Alle</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>&nbsp;</label>
+      <button class="btn-reset" id="btn-reset">Zurücksetzen</button>
+    </div>
+  </section>
+
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="liste">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 000 2h14a1 1 0 100-2H3zm0 4a1 1 0 000 2h14a1 1 0 100-2H3zm0 4a1 1 0 000 2h14a1 1 0 100-2H3z" clip-rule="evenodd"/></svg>
+      Liste
+    </button>
+    <button class="tab-btn" data-tab="karte">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+      Karte
+    </button>
+    <button class="tab-btn" data-tab="statistik">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+      Statistik
+    </button>
+  </nav>
+
+  <!-- ── Liste Tab ── -->
+  <div id="tab-liste" class="tab-content">
+    <div class="results-bar">
+      <span id="results-count">—</span>
+      <span class="last-updated" id="last-updated"></span>
+    </div>
+    <div class="table-wrapper">
+      <table id="calls-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-col="date">Datum <span class="sort-icon">↕</span></th>
+            <th class="sortable" data-col="time">Zeit <span class="sort-icon">↕</span></th>
+            <th class="sortable" data-col="canton">Kt. <span class="sort-icon">↕</span></th>
+            <th class="sortable" data-col="sourceName">Abteilung <span class="sort-icon">↕</span></th>
+            <th class="sortable" data-col="type">Einsatzart <span class="sort-icon">↕</span></th>
+            <th>Typ (Original)</th>
+            <th class="sortable" data-col="location">Ort <span class="sort-icon">↕</span></th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody id="calls-tbody">
+          <tr class="placeholder-row">
+            <td colspan="8"><div class="spinner-inline"></div> Lade Einsätze…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Karte Tab ── -->
+  <div id="tab-karte" class="tab-content hidden">
+    <div class="map-toolbar">
+      <span class="map-toolbar-label">Zeitraum:</span>
+      <div class="time-btn-group">
+        <button class="time-btn" data-hours="24">24h</button>
+        <button class="time-btn active" data-hours="48">48h</button>
+        <button class="time-btn" data-hours="168">7 Tage</button>
+      </div>
+      <span class="map-count" id="map-count"></span>
+    </div>
+    <div id="map"></div>
+    <div class="map-legend" id="map-legend"></div>
+  </div>
+
+  <!-- ── Statistik Tab ── -->
+  <div id="tab-statistik" class="tab-content hidden">
+    <div class="stats-grid">
+      <div class="stats-card">
+        <h3 class="stats-card-title">Einsatzart</h3>
+        <div class="chart-container"><canvas id="typeChart"></canvas></div>
+      </div>
+      <div class="stats-card">
+        <h3 class="stats-card-title">Einsätze pro Wochentag</h3>
+        <div class="chart-container"><canvas id="weekdayChart"></canvas></div>
+      </div>
+      <div class="stats-card">
+        <h3 class="stats-card-title">Einsätze pro Tageszeit</h3>
+        <div class="chart-container"><canvas id="hourlyChart"></canvas></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3 class="stats-card-title">Einsätze pro Monat</h3>
+        <div class="chart-container chart-container-wide"><canvas id="monthlyChart"></canvas></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3 class="stats-card-title">Einsätze pro Abteilung</h3>
+        <div class="chart-container chart-container-dept"><canvas id="deptChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
