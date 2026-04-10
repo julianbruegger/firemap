@@ -108,6 +108,10 @@
       <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
       Statistik
     </button>
+    <button class="tab-btn" data-tab="gemeinden">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12 1.586l-4 4v9.828l4-4V1.586zM3.707 3.293A1 1 0 002 4v10a1 1 0 00.293.707l4 4A1 1 0 008 18V8.414l-4-5.121zM12 18V8.414l4 5.121A1 1 0 0018 14V4a1 1 0 00-1.707-.707L12 8.414" clip-rule="evenodd"/></svg>
+      Gemeinden
+    </button>
   </nav>
 
   <!-- ── Liste Tab ── -->
@@ -231,6 +235,15 @@
         <div class="stats-trends" id="stats-trends"></div>
       </div>
     </div>
+  </div>
+  <!-- ── Gemeinden Tab ── -->
+  <div id="tab-gemeinden" class="tab-content hidden">
+    <div class="map-toolbar">
+      <span class="map-toolbar-label">Einsätze pro Gemeinde</span>
+      <span class="map-count" id="gemeinden-count"></span>
+    </div>
+    <div id="gemeinden-map"></div>
+    <div class="map-legend" id="gemeinden-legend"></div>
   </div>
 </main>
 

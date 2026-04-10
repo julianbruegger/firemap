@@ -455,10 +455,20 @@ a.ext-link:hover { text-decoration: underline; color: var(--accent-hover); }
 .global-time-btn.active { background: var(--red); border-color: var(--red); color: var(--text-on-red); }
 .map-count { font-size: 13px; color: var(--text-muted); }
 
-#map {
+#map, #gemeinden-map {
   height: 520px; border-radius: var(--radius);
   border: 1px solid var(--border); box-shadow: var(--shadow);
   z-index: 1;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  border: 1px solid oklch(0% 0 0 / 15%);
+  vertical-align: middle;
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 /* Marker resets — strip leaflet's default white box from divIcon */
 .fire-marker, .fire-cluster { background: none !important; border: none !important; }
@@ -553,6 +563,6 @@ a.ext-link:hover { text-decoration: underline; color: var(--accent-hover); }
   main { padding: 16px 12px 32px; }
   .filters { padding: 12px; }
   .filter-group { min-width: 120px; }
-  #map { height: 380px; }
+  #map, #gemeinden-map { height: 380px; }
   .tab-btn { padding: 6px 12px; font-size: 12px; }
 }
