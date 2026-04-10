@@ -3,6 +3,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const scrapeFwLuzern = require('./scrapers/fwluzern').scrape;
 const scrapeMalters = require('./scrapers/malters-schachen').scrape;
@@ -22,6 +23,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CACHE_FILE = path.join(__dirname, 'cache', 'calls.json');
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+const GEMEINDEN_CACHE_FILE = path.join(__dirname, 'cache', 'gemeinden.json');
+const GEMEINDEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// BFS canton numbers covered by this app: ZH=1, LU=3, SO=11, AG=19
+const COVERED_CANTONS = new Set([1, 3, 11, 19]);
 
 // Track ongoing scrape so parallel requests don't double-scrape
 let scrapeInProgress = null;
@@ -190,6 +196,56 @@ app.get('/api/status', (req, res) => {
     count: cache?.calls?.length || 0,
     errors: cache?.errors || [],
   });
+});
+
+// ── Gemeinden GeoJSON ────────────────────────────────────────────────────────
+
+app.get('/api/gemeinden', async (req, res) => {
+  // Serve from disk cache if fresh
+  try {
+    const raw = fs.readFileSync(GEMEINDEN_CACHE_FILE, 'utf8');
+    const cached = JSON.parse(raw);
+    if (cached.fetchedAt && Date.now() - new Date(cached.fetchedAt).getTime() < GEMEINDEN_TTL_MS) {
+      return res.json(cached.geojson);
+    }
+  } catch { /* no fresh cache */ }
+
+  // Fetch from swisstopo WFS
+  const WFS_URL =
+    'https://wms.geo.admin.ch/?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature' +
+    '&TYPENAMES=ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill' +
+    '&SRSNAME=EPSG:4326&OUTPUTFORMAT=application/json&COUNT=3000';
+
+  try {
+    const resp = await axios.get(WFS_URL, {
+      timeout: 60000,
+      headers: { 'User-Agent': 'FireAlerts-LU/1.0 (educational)' },
+    });
+    const geojson = resp.data;
+
+    // Keep only the 4 covered cantons
+    if (Array.isArray(geojson.features)) {
+      geojson.features = geojson.features.filter(f => {
+        const p = f.properties || {};
+        const ktnr = parseInt(p.KTNR ?? p.ktnr ?? -1);
+        return COVERED_CANTONS.has(ktnr);
+      });
+    }
+
+    fs.mkdirSync(path.dirname(GEMEINDEN_CACHE_FILE), { recursive: true });
+    fs.writeFileSync(GEMEINDEN_CACHE_FILE,
+      JSON.stringify({ fetchedAt: new Date().toISOString(), geojson }));
+    console.log(`[server] Cached ${geojson.features?.length ?? 0} Gemeinden`);
+    res.json(geojson);
+  } catch (err) {
+    console.error('[server] /api/gemeinden error:', err.message);
+    // Fall back to stale cache if available
+    try {
+      const raw = fs.readFileSync(GEMEINDEN_CACHE_FILE, 'utf8');
+      return res.json(JSON.parse(raw).geojson);
+    } catch {}
+    res.status(502).json({ error: 'Gemeindedaten nicht verfügbar', detail: err.message });
+  }
 });
 
 // ── Startup ──────────────────────────────────────────────────────────────────

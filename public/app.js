@@ -59,6 +59,11 @@ let mapInstance = null;
 let mapMarkers = [];
 let mapHours = 48;
 
+// Gemeinden map state
+let gemeindenMap = null;
+let gemeindenLayer = null;
+let gemeindenGeojson = null; // cached GeoJSON from /api/gemeinden
+
 // Polling
 let polling = false;
 
@@ -227,6 +232,9 @@ function switchTab(tab) {
     loadMap(mapHours);
   } else if (tab === 'statistik') {
     updateStatsCharts(applyFilters());
+  } else if (tab === 'gemeinden') {
+    initGemeindenMap();
+    loadGemeindenMap(applyFilters());
   }
 }
 
@@ -307,6 +315,7 @@ function update() {
   const filtered = applyFilters();
   renderTable(applySort(filtered));
   if (activeTab === 'statistik') updateStatsCharts(filtered);
+  if (activeTab === 'gemeinden') loadGemeindenMap(filtered);
 }
 
 // ── Dropdown population ───────────────────────────────────────────────────────
@@ -534,6 +543,199 @@ document.querySelectorAll('.time-btn').forEach(btn => {
     loadMap(mapHours);
   });
 });
+
+// ── Gemeinden Map ────────────────────────────────────────────────────────────
+
+function initGemeindenMap() {
+  if (gemeindenMap) return;
+  gemeindenMap = L.map('gemeinden-map').setView([47.25, 8.10], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(gemeindenMap);
+}
+
+// Ray-casting point-in-polygon. ring = [[lon, lat], ...]
+function raycast(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function pointInFeature(lon, lat, feature) {
+  const { type, coordinates } = feature.geometry;
+  if (type === 'Polygon')      return raycast(lon, lat, coordinates[0]);
+  if (type === 'MultiPolygon') return coordinates.some(p => raycast(lon, lat, p[0]));
+  return false;
+}
+
+// Read municipality name from a GeoJSON feature (handle property name variants)
+function getGemName(feature) {
+  const p = feature.properties || {};
+  return p.NAME || p.GEMNAME || p.gemname || p.name || 'Unbekannt';
+}
+
+// Choropleth colour ramp
+function gemeindeColor(count) {
+  if (count === 0)   return '#e8e8e8';
+  if (count <= 2)    return '#fde8c8';
+  if (count <= 5)    return '#f9a02a';
+  if (count <= 10)   return '#e06000';
+  return '#b91c1c';
+}
+
+// Compute axis-aligned bounding box of a feature (cached on the object itself)
+function featureBBox(feature) {
+  if (feature._bbox) return feature._bbox;
+  const pts = [];
+  const push = coords => coords.forEach(c => pts.push(c));
+  const { type, coordinates } = feature.geometry;
+  if (type === 'Polygon')      coordinates.forEach(push);
+  if (type === 'MultiPolygon') coordinates.forEach(poly => poly.forEach(push));
+  const lons = pts.map(c => c[0]), lats = pts.map(c => c[1]);
+  feature._bbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+  return feature._bbox;
+}
+
+/**
+ * Assign each call to a municipality name.
+ * - Calls with lat/lon → point-in-polygon (bbox pre-filtered)
+ * - Calls without coords → substring match of location vs. municipality name
+ * Returns a Map: gemName → Call[]
+ */
+function buildAlertsByGemeinde(calls, features) {
+  const byName = new Map();
+  const init   = name => { if (!byName.has(name)) byName.set(name, []); };
+
+  // Pre-build lowercase name index for text fallback
+  const nameIndex = features.map(f => ({ feature: f, key: getGemName(f).toLowerCase() }));
+
+  for (const call of calls) {
+    if (call.lat && call.lon) {
+      let matched = false;
+      for (const f of features) {
+        const [minLon, minLat, maxLon, maxLat] = featureBBox(f);
+        if (call.lon < minLon || call.lon > maxLon || call.lat < minLat || call.lat > maxLat) continue;
+        if (pointInFeature(call.lon, call.lat, f)) {
+          const name = getGemName(f);
+          init(name);
+          byName.get(name).push(call);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) { init('Unbekannt'); byName.get('Unbekannt').push(call); }
+    } else if (call.location) {
+      // Text fallback: find the longest municipality name contained in the location string
+      const loc = call.location.toLowerCase();
+      let best = null;
+      for (const { feature, key } of nameIndex) {
+        if (key.length >= 3 && loc.includes(key) && (!best || key.length > best.key.length)) {
+          best = { feature, key };
+        }
+      }
+      if (best) {
+        const name = getGemName(best.feature);
+        init(name);
+        byName.get(name).push(call);
+      }
+    }
+  }
+  return byName;
+}
+
+function buildGemeindePopup(gemName, alerts) {
+  if (alerts.length === 0) {
+    return `<div class="map-popup"><strong>${escHtml(gemName)}</strong><br><span class="popup-detail">Keine Einsätze</span></div>`;
+  }
+  const sorted = [...alerts].sort((a, b) =>
+    ((b.date || '') + (b.time || '')).localeCompare((a.date || '') + (a.time || ''))
+  );
+  return `<div class="map-popup map-popup-cluster">
+    <div class="popup-location cluster-location">${escHtml(gemName)}</div>
+    <div class="popup-count">${alerts.length} Einsatz${alerts.length !== 1 ? 'e' : ''}</div>
+    <div class="popup-entries">${sorted.map(makePopupEntry).join('')}</div>
+  </div>`;
+}
+
+function buildGemeindenLegend() {
+  const legend = document.getElementById('gemeinden-legend');
+  if (!legend) return;
+  const steps = [
+    { label: '0',    count: 0  },
+    { label: '1–2',  count: 1  },
+    { label: '3–5',  count: 3  },
+    { label: '6–10', count: 6  },
+    { label: '≥11',  count: 11 },
+  ];
+  legend.innerHTML = steps.map(s =>
+    `<span class="legend-item"><span class="legend-swatch" style="background:${gemeindeColor(s.count)}"></span>${escHtml(s.label)} Einsätze</span>`
+  ).join('');
+}
+
+async function loadGemeindenMap(calls) {
+  if (!gemeindenMap) return;
+  const countEl = document.getElementById('gemeinden-count');
+
+  // Fetch GeoJSON once; reuse on subsequent filter changes
+  if (!gemeindenGeojson) {
+    countEl.textContent = 'Lade Gemeinden…';
+    try {
+      const res = await fetch('/api/gemeinden');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      gemeindenGeojson = await res.json();
+    } catch (err) {
+      countEl.textContent = `Fehler: ${err.message}`;
+      return;
+    }
+  }
+
+  const features = gemeindenGeojson.features || [];
+  const byName   = buildAlertsByGemeinde(calls, features);
+
+  // Remove previous layer
+  if (gemeindenLayer) { gemeindenLayer.remove(); gemeindenLayer = null; }
+
+  gemeindenLayer = L.geoJSON(gemeindenGeojson, {
+    style(feature) {
+      const name  = getGemName(feature);
+      const count = (byName.get(name) || []).length;
+      return {
+        fillColor:   gemeindeColor(count),
+        fillOpacity: count > 0 ? 0.72 : 0.30,
+        color:       '#777',
+        weight:      0.6,
+        opacity:     0.8,
+      };
+    },
+    onEachFeature(feature, layer) {
+      const name   = getGemName(feature);
+      const alerts = byName.get(name) || [];
+
+      layer.on('mouseover', e => e.target.setStyle({ weight: 2.5, color: '#222', fillOpacity: 0.9 }));
+      layer.on('mouseout',  () => gemeindenLayer.resetStyle(layer));
+      layer.on('click', e => {
+        L.popup({ maxWidth: 380, maxHeight: 420 })
+          .setLatLng(e.latlng)
+          .setContent(buildGemeindePopup(name, alerts))
+          .openOn(gemeindenMap);
+      });
+    },
+  }).addTo(gemeindenMap);
+
+  buildGemeindenLegend();
+
+  const matched  = [...byName.entries()].filter(([k]) => k !== 'Unbekannt')
+                                         .reduce((s, [, v]) => s + v.length, 0);
+  const gemCount = byName.size - (byName.has('Unbekannt') ? 1 : 0);
+  countEl.textContent = `${matched} von ${calls.length} Einsätzen · ${gemCount} Gemeinden`;
+}
 
 // ── Statistics charts ─────────────────────────────────────────────────────────
 
